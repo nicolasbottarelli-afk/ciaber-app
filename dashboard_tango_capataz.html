@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Proyecto Tango + Capataz — Laboratorios Rospaw</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0f1419; --panel:#1a2028; --panel2:#232b36;
+  --border:#2f3a47; --text:#e6edf3; --muted:#8b97a7;
+  --accent:#4f8cff; --green:#3fb950; --yellow:#d29922; --red:#f85149;
+  --purple:#a371f7; --row-alt:#1e252e;
+}
+*{box-sizing:border-box}
+body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg); color:var(--text); min-height:100vh;}
+
+header.top{padding:24px 32px; border-bottom:1px solid var(--border);
+  background:linear-gradient(135deg,#1a2028 0%,#232b36 100%);}
+header.top h1{margin:0 0 6px; font-size:22px; font-weight:600}
+header.top .meta{color:var(--muted); font-size:13px; display:flex; gap:18px; flex-wrap:wrap}
+header.top .meta b{color:var(--text); font-weight:500}
+
+nav.tabs{display:flex; gap:2px; padding:0 32px; background:var(--panel);
+  border-bottom:1px solid var(--border); overflow-x:auto}
+nav.tabs .tab{padding:14px 20px; cursor:pointer; color:var(--muted);
+  border-bottom:2px solid transparent; font-size:14px; white-space:nowrap; transition:all .15s}
+nav.tabs .tab:hover{color:var(--text); background:rgba(79,140,255,.08)}
+nav.tabs .tab.active{color:var(--accent); border-bottom-color:var(--accent); background:rgba(79,140,255,.05)}
+
+main{padding:28px 32px; max-width:1400px}
+section{display:none}
+section.active{display:block}
+
+/* KPI cards */
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px}
+.kpi{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px 20px}
+.kpi .label{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px}
+.kpi .value{font-size:28px; font-weight:600}
+.kpi.green .value{color:var(--green)}
+.kpi.yellow .value{color:var(--yellow)}
+.kpi.red .value{color:var(--red)}
+.kpi.accent .value{color:var(--accent)}
+
+.bar{height:8px; background:var(--panel2); border-radius:4px; overflow:hidden; margin-top:14px; display:flex}
+.bar > div{height:100%}
+.bar .b-green{background:var(--green)}
+.bar .b-yellow{background:var(--yellow)}
+.bar .b-red{background:var(--red)}
+
+h2{font-size:16px; font-weight:600; margin:24px 0 12px}
+h2:first-child{margin-top:0}
+
+/* Tables */
+.table-wrap{background:var(--panel); border:1px solid var(--border); border-radius:8px; overflow:auto}
+table{border-collapse:collapse; width:100%; font-size:13px}
+th,td{padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top}
+th{background:var(--panel2); font-weight:600; color:var(--text); position:sticky; top:0; z-index:1}
+tr:hover td{background:rgba(79,140,255,.06)}
+td.muted{color:var(--muted)}
+
+.pill{display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; white-space:nowrap}
+.pill.terminado, .pill.realizado{background:rgba(63,185,80,.15); color:var(--green)}
+.pill.en-curso{background:rgba(210,153,34,.15); color:var(--yellow)}
+.pill.pendiente{background:rgba(248,81,73,.15); color:var(--red)}
+
+/* Estado select inline */
+select.estado-sel{
+  background:var(--panel2); border:1px solid var(--border); color:var(--text);
+  padding:5px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;
+  min-width:110px;
+}
+select.estado-sel:focus{outline:none; border-color:var(--accent)}
+select.estado-sel.s-terminado{background:rgba(63,185,80,.15); color:var(--green); border-color:rgba(63,185,80,.3)}
+select.estado-sel.s-en-curso{background:rgba(210,153,34,.15); color:var(--yellow); border-color:rgba(210,153,34,.3)}
+select.estado-sel.s-pendiente{background:rgba(248,81,73,.15); color:var(--red); border-color:rgba(248,81,73,.3)}
+
+.save-info{font-size:12px; color:var(--muted); margin-left:auto; display:flex; align-items:center; gap:10px}
+.save-info button{background:var(--panel2); border:1px solid var(--border); color:var(--muted);
+  padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer}
+.save-info button:hover{color:var(--text); border-color:var(--accent)}
+.toast{position:fixed; bottom:24px; right:24px; background:var(--green); color:white;
+  padding:10px 18px; border-radius:8px; font-size:13px; box-shadow:0 4px 12px rgba(0,0,0,.3);
+  opacity:0; transform:translateY(10px); transition:all .2s; pointer-events:none; z-index:100}
+.toast.show{opacity:1; transform:translateY(0)}
+
+.editable{display:inline-block; min-width:120px; padding:3px 6px; border-radius:4px;
+  border:1px dashed transparent; transition:all .15s; cursor:text}
+.editable:hover{border-color:var(--border); background:var(--panel2)}
+.editable:focus{outline:none; border-color:var(--accent); border-style:solid;
+  background:var(--panel2); box-shadow:0 0 0 2px rgba(79,140,255,.15)}
+
+/* Chips de filtro rápido */
+.chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+.chip{padding:8px 16px; border-radius:20px; cursor:pointer; font-size:13px; font-weight:500;
+  background:var(--panel2); border:1px solid var(--border); color:var(--muted);
+  transition:all .15s; user-select:none}
+.chip:hover{color:var(--text); border-color:var(--accent)}
+.chip .count{background:var(--panel); padding:1px 8px; border-radius:10px; margin-left:6px; font-size:11px}
+.chip.active{background:var(--accent); color:white; border-color:var(--accent)}
+.chip.active .count{background:rgba(255,255,255,.2)}
+.chip.terminado.active{background:var(--green); border-color:var(--green)}
+.chip.en-curso.active{background:var(--yellow); border-color:var(--yellow); color:#1a2028}
+.chip.pendiente.active{background:var(--red); border-color:var(--red)}
+
+.kpi{cursor:pointer; transition:transform .15s, border-color .15s}
+.kpi:hover{transform:translateY(-2px); border-color:var(--accent)}
+
+/* Botones de acción */
+.btn{background:var(--accent); color:white; padding:9px 16px; border-radius:6px;
+  border:none; font-size:13px; font-weight:500; cursor:pointer; transition:background .15s}
+.btn:hover{background:var(--accent-hover, #6ba0ff)}
+.btn.secondary{background:var(--panel2); border:1px solid var(--border); color:var(--text)}
+.btn.secondary:hover{border-color:var(--accent); background:var(--panel)}
+.btn.danger{background:var(--red)}
+.btn.danger:hover{background:#ff6b63}
+.actions-bar{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center}
+
+/* Botón borrar fila */
+.del-btn{background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:16px;
+  padding:4px 8px; border-radius:4px; transition:all .15s}
+.del-btn:hover{color:var(--red); background:rgba(248,81,73,.1)}
+
+/* Modal */
+.modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+  align-items:center; justify-content:center; z-index:200; backdrop-filter:blur(4px)}
+.modal-bg.show{display:flex}
+.modal{background:var(--panel); border:1px solid var(--border); border-radius:12px;
+  padding:24px; width:min(540px, 92vw); max-height:90vh; overflow-y:auto;
+  box-shadow:0 12px 48px rgba(0,0,0,.5)}
+.modal h3{margin:0 0 18px; font-size:18px}
+.field{margin-bottom:14px}
+.field label{display:block; font-size:12px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:.5px}
+.field input, .field select, .field textarea{
+  width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text);
+  padding:9px 12px; border-radius:6px; font-size:14px; font-family:inherit;
+}
+.field input:focus, .field select:focus, .field textarea:focus{outline:none; border-color:var(--accent)}
+.field textarea{resize:vertical; min-height:60px}
+.modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:20px}
+
+td.actions-cell{width:50px; text-align:center}
+.pill.alta{background:rgba(248,81,73,.12); color:var(--red)}
+.pill.media{background:rgba(210,153,34,.12); color:var(--yellow)}
+.pill.baja{background:rgba(79,140,255,.12); color:var(--accent)}
+
+/* Filters */
+.filters{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px}
+.filters select, .filters input{background:var(--panel2); border:1px solid var(--border);
+  color:var(--text); padding:8px 12px; border-radius:6px; font-size:13px}
+.filters input{width:240px}
+.filters select:focus, .filters input:focus{outline:none; border-color:var(--accent)}
+
+/* Org chart */
+.org-tree{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:24px}
+.org-node{padding:8px 12px; margin:3px 0; border-left:3px solid var(--border); border-radius:0 6px 6px 0;
+  background:var(--panel2); transition:all .15s}
+.org-node:hover{border-left-color:var(--accent); background:rgba(79,140,255,.05)}
+.org-node .name{font-weight:600}
+.org-node .role{color:var(--muted); font-size:12px; margin-left:8px}
+.org-node .area{color:var(--accent); font-size:11px; margin-left:8px; padding:2px 8px;
+  background:rgba(79,140,255,.1); border-radius:10px}
+.org-node.lvl-1{border-left-color:var(--purple)}
+.org-node.lvl-2{border-left-color:var(--accent); margin-left:28px}
+.org-node.lvl-3{border-left-color:var(--green); margin-left:56px}
+.org-node.lvl-4{border-left-color:var(--yellow); margin-left:84px}
+.org-node.key{background:rgba(163,113,247,.08)}
+.org-node.key .name::after{content:" KEY"; background:var(--purple); color:white;
+  padding:1px 6px; border-radius:8px; font-size:10px; margin-left:8px}
+
+/* Cards grid for contacts */
+.card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px}
+.card{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px 16px}
+.card .nm{font-weight:600; font-size:14px}
+.card .rl{color:var(--accent); font-size:12px; margin-top:3px}
+.card .ar{color:var(--muted); font-size:12px; margin-top:2px}
+.card .em{color:var(--muted); font-size:12px; margin-top:6px; word-break:break-all}
+
+.row-hidden{display:none}
+.empty-cell{color:var(--muted); font-style:italic; font-size:12px}
+
+footer{padding:24px 32px; color:var(--muted); font-size:12px; text-align:center; border-top:1px solid var(--border); margin-top:40px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Proyecto Tango + Capataz</h1>
+  <div class="meta">
+    <span><b>Cliente:</b> Laboratorios Rospaw</span>
+    <span><b>Responsable:</b> Mariano Bottarelli (Sistemas)</span>
+    <span><b>Base de datos:</b> Compartida entre Tango y Capataz</span>
+    <span><b>Última actualización:</b> 14/05/2026</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tab active" data-target="resumen">Resumen</div>
+  <div class="tab" data-target="tareas">Tareas</div>
+  <div class="tab" data-target="organigrama">Organigrama</div>
+  <div class="tab" data-target="contactos">Contactos</div>
+  <div class="tab" data-target="proveedores">Proveedores</div>
+</nav>
+
+<main>
+
+<!-- RESUMEN -->
+<section id="resumen" class="active">
+  <div class="kpis">
+    <div class="kpi accent"><div class="label">Total tareas</div><div class="value" id="kpi-total">0</div></div>
+    <div class="kpi green"><div class="label">Realizadas</div><div class="value" id="kpi-real">0</div></div>
+    <div class="kpi yellow"><div class="label">En curso</div><div class="value" id="kpi-curso">0</div></div>
+    <div class="kpi red"><div class="label">Pendientes</div><div class="value" id="kpi-pend">0</div></div>
+  </div>
+
+  <h2>Avance del proyecto</h2>
+  <div class="bar" id="progress-bar"></div>
+  <div class="muted" id="progress-text" style="color:var(--muted); font-size:12px; margin-top:8px"></div>
+
+  <h2>Objetivo</h2>
+  <div class="table-wrap" style="padding:16px 20px">
+    Implementación integrada de <b>Tango (Axoft)</b> + <b>Capataz</b> para administración y movimientos de depósito, sobre una base de datos compartida entre ambos sistemas.
+  </div>
+
+  <h2>Tareas de alta prioridad pendientes / en curso</h2>
+  <div class="table-wrap">
+    <table><thead><tr>
+      <th>ID</th><th>Tarea</th><th>Estado</th><th>Responsable</th><th>Notas</th>
+    </tr></thead><tbody id="hot-tasks"></tbody></table>
+  </div>
+
+  <h2>Capacitación reciente</h2>
+  <div class="table-wrap" style="padding:16px 20px">
+    <div><b>Capataz</b> — Jueves 14/05/2026, 10:15 a 13:00 hs</div>
+    <div style="color:var(--muted); margin-top:6px">Meet: <a href="https://meet.google.com/ufk-imrq-imw" style="color:var(--accent)">meet.google.com/ufk-imrq-imw</a></div>
+  </div>
+</section>
+
+<!-- TAREAS -->
+<section id="tareas">
+  <div class="actions-bar">
+    <button class="btn" id="new-task-btn">+ Nueva tarea</button>
+    <button class="btn secondary" id="export-btn">Exportar a Excel</button>
+    <span style="color:var(--muted); font-size:12px; margin-left:8px">
+      Cambios y nuevas tareas se guardan en este navegador. Usá <b>Exportar</b> para bajar el .xlsx actualizado.
+    </span>
+  </div>
+  <div class="chips" id="chips">
+    <div class="chip active" data-estado="">Todas <span class="count" id="cn-all">0</span></div>
+    <div class="chip terminado" data-estado="Terminado">Terminadas <span class="count" id="cn-t">0</span></div>
+    <div class="chip en-curso" data-estado="En curso">En curso <span class="count" id="cn-c">0</span></div>
+    <div class="chip pendiente" data-estado="Pendiente">Pendientes <span class="count" id="cn-p">0</span></div>
+  </div>
+  <div class="filters">
+    <input type="text" id="t-search" placeholder="Buscar tarea, responsable, nota…">
+    <select id="t-estado"><option value="">Todos los estados</option></select>
+    <select id="t-prio"><option value="">Todas las prioridades</option></select>
+    <select id="t-cat"><option value="">Todas las categorías</option></select>
+    <select id="t-resp"><option value="">Todos los responsables</option></select>
+    <div class="save-info">
+      <span>Los cambios se guardan automáticamente</span>
+      <button id="reset-btn" title="Restaurar valores originales">Restaurar</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table><thead><tr>
+      <th style="width:40px">#</th><th>Tarea</th><th>Categoría</th><th style="width:140px">Estado</th><th>Prioridad</th>
+      <th>Responsable</th><th>Notas</th><th class="actions-cell"></th>
+    </tr></thead><tbody id="t-body"></tbody></table>
+  </div>
+</section>
+
+<!-- MODAL NUEVA TAREA -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">Nueva tarea</h3>
+    <div class="field">
+      <label>Tarea *</label>
+      <input type="text" id="f-tarea" placeholder="Descripción de la tarea">
+    </div>
+    <div class="field">
+      <label>Categoría</label>
+      <input type="text" id="f-cat" list="cat-list" placeholder="Implementación, Capacitación…">
+      <datalist id="cat-list"></datalist>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px">
+      <div class="field">
+        <label>Estado</label>
+        <select id="f-estado">
+          <option>Pendiente</option><option>En curso</option><option>Terminado</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Prioridad</label>
+        <select id="f-prio">
+          <option>Alta</option><option>Media</option><option>Baja</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Responsable</label>
+      <input type="text" id="f-resp" list="resp-list" placeholder="Nombre del responsable">
+      <datalist id="resp-list"></datalist>
+    </div>
+    <div class="field">
+      <label>Notas</label>
+      <textarea id="f-notas" placeholder="Notas adicionales"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="modal-cancel">Cancelar</button>
+      <button class="btn" id="modal-save">Guardar tarea</button>
+    </div>
+  </div>
+</div>
+
+<!-- ORGANIGRAMA -->
+<section id="organigrama">
+  <h2>Estructura — Laboratorios Rospaw</h2>
+  <div class="org-tree" id="org-body"></div>
+</section>
+
+<!-- CONTACTOS -->
+<section id="contactos">
+  <div class="filters">
+    <input type="text" id="c-search" placeholder="Buscar contacto…">
+  </div>
+  <div class="card-grid" id="c-body"></div>
+</section>
+
+<!-- PROVEEDORES -->
+<section id="proveedores">
+  <div class="table-wrap">
+    <table><thead><tr>
+      <th>Sistema</th><th>Empresa</th><th>Contacto</th><th>Rol / Notas</th>
+    </tr></thead><tbody id="p-body"></tbody></table>
+  </div>
+</section>
+
+</main>
+
+<footer>Dashboard interno · Laboratorio Rospaw · Mariano Bottarelli — Sistemas</footer>
+
+<script>
+// === DATA ===
+const TAREAS = [
+  {id:1, tarea:"Capacitación Capataz (Meet ufk-imrq-imw)", cat:"Capacitación", estado:"Terminado", prio:"Alta", resp:"Natalia Talavera", inicio:"2026-05-14", limite:"2026-05-14", cierre:"2026-05-14", notas:"Jueves 10:15 a 13:00 hs — https://meet.google.com/ufk-imrq-imw"},
+  {id:2, tarea:"Implementación Tango + Capataz sobre BD compartida", cat:"Implementación", estado:"En curso", prio:"Alta", resp:"Mariano Bottarelli", inicio:"2026-05-01", limite:"", cierre:"", notas:"Base de datos compartida entre ambos sistemas"},
+  {id:3, tarea:"Confirmar asistencia a capacitación (mensaje a enviar)", cat:"Comunicación", estado:"Pendiente", prio:"Media", resp:"Mariano Bottarelli", inicio:"2026-05-14", limite:"2026-05-14", cierre:"", notas:"Enviar mensaje confirmando asistencia"},
+  {id:4, tarea:"Crear grupo de WhatsApp con Gerentes/DT/Key Users", cat:"Comunicación", estado:"Pendiente", prio:"Alta", resp:"Mariano Bottarelli", inicio:"", limite:"2026-05-15", cierre:"", notas:"10 contactos: Mauricio González, Ariel Loszniowski, Miguel Sabarino, Carlos Lertora, Franco Di Carlo, Leonardo Correa, Leonardo Valcárcel, Florencia Pennacchio, Sergio Suárez, Gabriel Budassi"},
+  {id:5, tarea:"Definir protocolo de pruebas integración Tango-Capataz", cat:"Implementación", estado:"Pendiente", prio:"Alta", resp:"Mariano Bottarelli", inicio:"", limite:"", cierre:"", notas:""},
+  {id:6, tarea:"Validar movimientos de depósito en Capataz", cat:"Implementación", estado:"Pendiente", prio:"Alta", resp:"Carlos Lertora", inicio:"", limite:"", cierre:"", notas:"Key User: Gabriel Budassi"},
+  {id:7, tarea:"Validar planificación en Capataz", cat:"Implementación", estado:"Pendiente", prio:"Alta", resp:"Leonardo Correa", inicio:"", limite:"", cierre:"", notas:"Key User: Sergio Suárez"},
+  {id:8, tarea:"Capacitación Key Users", cat:"Capacitación", estado:"Pendiente", prio:"Media", resp:"Natalia Talavera", inicio:"", limite:"", cierre:"", notas:"Sergio Suárez y Gabriel Budassi"},
+  {id:9, tarea:"Documentar procesos integrados Tango-Capataz", cat:"Documentación", estado:"Pendiente", prio:"Media", resp:"Mariano Bottarelli", inicio:"", limite:"", cierre:"", notas:""},
+  {id:10, tarea:"Coordinar soporte conjunto Axoft + Capataz", cat:"Coordinación", estado:"Pendiente", prio:"Media", resp:"Mariano Bottarelli", inicio:"", limite:"", cierre:"", notas:"Boero (Axoft) y Natalia Talavera (Capataz)"},
+  {id:11, tarea:"Ajustes técnicos", cat:"Ajustes técnicos", estado:"Pendiente", prio:"Media", resp:"Mariano Bottarelli", inicio:"", limite:"", cierre:"", notas:"Pendiente de detalle — listar puntualmente los ajustes necesarios"},
+  {id:12, tarea:"Configurar alarmas / alertas por mail", cat:"Notificaciones", estado:"Pendiente", prio:"Media", resp:"Mariano Bottarelli", inicio:"", limite:"", cierre:"", notas:"Definir eventos a notificar (vencimientos, errores, hitos) y destinatarios"},
+];
+
+const ORG = [
+  {lvl:1, name:"Karen Rosemblatt", role:"Dirección General", area:"Dirección General"},
+  {lvl:1, name:"Sergio Rosemblatt", role:"Dirección General", area:"Dirección General"},
+  {lvl:2, name:"Mauricio González", role:"Director Técnico (DT)", area:"Dirección Técnica"},
+  {lvl:3, name:"Laura Schottlender", role:"Co-DT", area:"Dirección Técnica"},
+  {lvl:3, name:"Erwin Mora", role:"Jefe de Control de Calidad", area:"Dirección Técnica"},
+  {lvl:3, name:"Sonia Rodríguez", role:"Jefe de Garantía de Calidad", area:"Dirección Técnica"},
+  {lvl:3, name:"Diego Pivato", role:"Jefe de Desarrollo", area:"Dirección Técnica"},
+  {lvl:2, name:"Ariel Loszniowski", role:"Gerente de Operaciones", area:"Operaciones"},
+  {lvl:3, name:"Carlos Lertora", role:"Jefe de Depósito", area:"Operaciones"},
+  {lvl:4, name:"Gabriel Budassi", role:"Key User", area:"Operaciones / Sistemas", key:true},
+  {lvl:3, name:"Franco Di Carlo", role:"Jefe de Producción", area:"Operaciones"},
+  {lvl:3, name:"Leonardo Correa", role:"Jefe de Planificación", area:"Operaciones"},
+  {lvl:4, name:"Sergio Suárez", role:"Key User", area:"Operaciones / Sistemas", key:true},
+  {lvl:2, name:"Miguel Sabarino", role:"Gerente de Administración", area:"Administración"},
+  {lvl:3, name:"Leonardo Valcárcel", role:"Jefe de Compras", area:"Administración"},
+  {lvl:2, name:"Lorena Liloia", role:"Gerente Comercial, Marketing y Servicio", area:"Comercial"},
+  {lvl:3, name:"Gabriel Díaz", role:"Jefe de Ventas", area:"Comercial"},
+  {lvl:3, name:"Euris Ramírez", role:"Jefe de Expedición", area:"Comercial"},
+  {lvl:3, name:"Florencia Pennacchio", role:"Comercio Exterior (doble reporte)", area:"COMEX"},
+  {lvl:2, name:"Mariano Bottarelli", role:"Sistemas — Responsable del proyecto", area:"Sistemas"},
+  {lvl:3, name:"Diego Taras", role:"Programador", area:"Sistemas"},
+  {lvl:3, name:"Diego González", role:"Especialista en Redes y Soporte Técnico", area:"Sistemas"},
+  {lvl:3, name:"Natalia Talavera", role:"Consultora Externa — Capataz", area:"Sistemas (Externo)"},
+  {lvl:4, name:"Ariel Espejo", role:"Consultor Externo — Tango", area:"Sistemas (Externo)"},
+  {lvl:4, name:"Martina Villaruel", role:"Consultora Externa", area:"Sistemas (Externo)"},
+];
+
+const CONTACTOS = [
+  {nm:"Mauricio González", rl:"DT", ar:"Dirección Técnica", em:""},
+  {nm:"Ariel Loszniowski", rl:"Gerente Operaciones", ar:"Operaciones", em:""},
+  {nm:"Miguel Sabarino", rl:"Gerente Administración", ar:"Administración", em:""},
+  {nm:"Carlos Lertora", rl:"Jefe Depósito", ar:"Operaciones", em:""},
+  {nm:"Franco Di Carlo", rl:"Jefe Producción", ar:"Operaciones", em:""},
+  {nm:"Leonardo Correa", rl:"Jefe Planificación", ar:"Operaciones", em:""},
+  {nm:"Leonardo Valcárcel", rl:"Jefe Compras", ar:"Administración", em:""},
+  {nm:"Florencia Pennacchio", rl:"Comercio Exterior", ar:"COMEX", em:""},
+  {nm:"Sergio Suárez", rl:"Key User", ar:"Operaciones / Sistemas", em:""},
+  {nm:"Gabriel Budassi", rl:"Key User", ar:"Operaciones / Sistemas", em:""},
+  {nm:"Mariano Bottarelli", rl:"Sistemas (Responsable)", ar:"Sistemas", em:"bottarellim@gmail.com"},
+];
+
+const PROVEEDORES = [
+  {sis:"Tango", emp:"Axoft", cont:"Boero", rol:"Soporte ERP"},
+  {sis:"Capataz", emp:"Capataz", cont:"Natalia Talavera", rol:"Consultora e Implementadora"},
+  {sis:"Tango", emp:"Externo", cont:"Ariel Espejo", rol:"Consultor externo Tango"},
+  {sis:"Capataz", emp:"Externo", cont:"Martina Villaruel", rol:"Consultora externa"},
+];
+
+// === TABS ===
+document.querySelectorAll('nav.tabs .tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('nav.tabs .tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('section').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.target).classList.add('active');
+  };
+});
+
+// === PERSISTENCIA (localStorage) ===
+const STORAGE_KEY = 'rospaw_state_v2';
+const ESTADOS = ['Terminado', 'En curso', 'Pendiente'];
+
+function loadState(){
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"overrides":{},"added":[],"deleted":[]}'); }
+  catch { return {overrides:{},added:[],deleted:[]}; }
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  showToast('Guardado');
+}
+let state = loadState();
+state.overrides = state.overrides || {};
+state.added = state.added || [];
+state.deleted = state.deleted || [];
+
+// Aplicar overrides a TAREAS y sumar las nuevas / quitar las eliminadas
+function applyState(){
+  // Quitar eliminadas
+  for (let i = TAREAS.length - 1; i >= 0; i--){
+    if (state.deleted.includes(TAREAS[i].id)) TAREAS.splice(i, 1);
+  }
+  // Aplicar overrides
+  TAREAS.forEach(t => {
+    const o = state.overrides[t.id];
+    if (o){
+      if (o.estado) t.estado = o.estado;
+      if (o.tarea !== undefined) t.tarea = o.tarea;
+    }
+  });
+  // Sumar nuevas (evitando duplicar)
+  state.added.forEach(nt => {
+    if (!TAREAS.find(t => t.id === nt.id)) TAREAS.push(nt);
+  });
+}
+applyState();
+
+function nextId(){
+  return TAREAS.reduce((m, t) => Math.max(m, t.id), 0) + 1;
+}
+
+function updateTarea(id, field, value){
+  // Si es una tarea nueva (en state.added), actualizar ahí
+  const added = state.added.find(t => t.id === id);
+  if (added){ added[field] = value; }
+  else {
+    if (!state.overrides[id]) state.overrides[id] = {};
+    state.overrides[id][field] = value;
+  }
+  const t = TAREAS.find(x => x.id === id);
+  if (t) t[field] = value;
+  saveState();
+  refreshAll();
+}
+
+function addTarea(data){
+  const id = nextId();
+  const nueva = {id, ...data, inicio:'', limite:'', cierre:''};
+  state.added.push(nueva);
+  TAREAS.push(nueva);
+  saveState();
+  refreshAll();
+}
+
+function deleteTarea(id){
+  // Si era una agregada, removerla
+  const ai = state.added.findIndex(t => t.id === id);
+  if (ai >= 0) state.added.splice(ai, 1);
+  else if (!state.deleted.includes(id)) state.deleted.push(id);
+  // Limpiar override
+  delete state.overrides[id];
+  // Sacar de TAREAS
+  const ti = TAREAS.findIndex(t => t.id === id);
+  if (ti >= 0) TAREAS.splice(ti, 1);
+  saveState();
+  refreshAll();
+}
+
+function refreshAll(){
+  renderKPIs();
+  renderHotTasks();
+  renderTareas();
+}
+
+function showToast(msg){
+  let el = document.getElementById('toast');
+  if (!el){
+    el = document.createElement('div'); el.id = 'toast'; el.className = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+// === RESUMEN ===
+function renderKPIs(){
+  const total = TAREAS.length;
+  const real = TAREAS.filter(t => t.estado === 'Terminado').length;
+  const curso = TAREAS.filter(t => t.estado === 'En curso').length;
+  const pend = TAREAS.filter(t => t.estado === 'Pendiente').length;
+  document.getElementById('kpi-total').textContent = total;
+  document.getElementById('kpi-real').textContent = real;
+  document.getElementById('kpi-curso').textContent = curso;
+  document.getElementById('kpi-pend').textContent = pend;
+
+  const pctReal = (real/total*100).toFixed(0);
+  const pctCurso = (curso/total*100).toFixed(0);
+  const pctPend = (pend/total*100).toFixed(0);
+  document.getElementById('progress-bar').innerHTML =
+    `<div class="b-green" style="width:${pctReal}%"></div>
+     <div class="b-yellow" style="width:${pctCurso}%"></div>
+     <div class="b-red" style="width:${pctPend}%"></div>`;
+  document.getElementById('progress-text').textContent =
+    `${pctReal}% terminado · ${pctCurso}% en curso · ${pctPend}% pendiente`;
+}
+
+function renderHotTasks(){
+  const hot = TAREAS.filter(t => t.prio === 'Alta' && t.estado !== 'Terminado');
+  document.getElementById('hot-tasks').innerHTML = hot.map(t => `
+    <tr>
+      <td>${t.id}</td>
+      <td>${escape(t.tarea)}</td>
+      <td><span class="pill ${pillClass(t.estado)}">${t.estado}</span></td>
+      <td>${escape(t.resp)}</td>
+      <td>${escape(t.notas) ? `<span class="muted">${escape(t.notas).slice(0,80)}${t.notas.length>80?'…':''}</span>` : '<span class="empty-cell">—</span>'}</td>
+    </tr>`).join('');
+}
+
+// === TAREAS ===
+function pillClass(s){ return s.toLowerCase().replace(' ','-'); }
+function escape(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderTareas(){
+  const q = document.getElementById('t-search').value.toLowerCase();
+  const fe = document.getElementById('t-estado').value;
+  const fp = document.getElementById('t-prio').value;
+  const fc = document.getElementById('t-cat').value;
+  const fr = document.getElementById('t-resp').value;
+  const filtered = TAREAS.filter(t => {
+    if (fe && t.estado !== fe) return false;
+    if (fp && t.prio !== fp) return false;
+    if (fc && t.cat !== fc) return false;
+    if (fr && t.resp !== fr) return false;
+    if (q){
+      const blob = [t.tarea, t.cat, t.resp, t.notas].join(' ').toLowerCase();
+      if (!blob.includes(q)) return false;
+    }
+    return true;
+  });
+  document.getElementById('t-body').innerHTML = filtered.map(t => {
+    const sc = 's-' + pillClass(t.estado);
+    const opts = ESTADOS.map(e => `<option value="${e}" ${e===t.estado?'selected':''}>${e}</option>`).join('');
+    return `
+    <tr data-id="${t.id}">
+      <td>${t.id}</td>
+      <td><span class="editable" contenteditable="true" data-field="tarea" data-id="${t.id}">${escape(t.tarea)}</span></td>
+      <td>${escape(t.cat)}</td>
+      <td><select class="estado-sel ${sc}" data-id="${t.id}">${opts}</select></td>
+      <td><span class="pill ${t.prio.toLowerCase()}">${t.prio}</span></td>
+      <td>${escape(t.resp)}</td>
+      <td class="muted">${escape(t.notas) || '<span class="empty-cell">—</span>'}</td>
+      <td class="actions-cell"><button class="del-btn" data-del="${t.id}" title="Eliminar tarea">×</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--muted)">Sin resultados</td></tr>';
+
+  // Bind eliminar
+  document.querySelectorAll('.del-btn').forEach(b => {
+    b.onclick = () => {
+      const id = parseInt(b.dataset.del);
+      const t = TAREAS.find(x => x.id === id);
+      if (confirm(`¿Eliminar la tarea "${t?.tarea || id}"?`)) deleteTarea(id);
+    };
+  });
+
+  // Bind selects de Estado
+  document.querySelectorAll('select.estado-sel').forEach(sel => {
+    sel.onchange = () => updateTarea(parseInt(sel.dataset.id), 'estado', sel.value);
+  });
+  // Bind edición de Tarea (al perder foco o Enter)
+  document.querySelectorAll('[contenteditable][data-field="tarea"]').forEach(el => {
+    el.addEventListener('blur', () => {
+      const id = parseInt(el.dataset.id);
+      const val = el.textContent.trim();
+      const cur = TAREAS.find(x => x.id === id);
+      if (cur && val && val !== cur.tarea) updateTarea(id, 'tarea', val);
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){ e.preventDefault(); el.blur(); }
+    });
+  });
+}
+
+function fillSelect(id, vals){
+  const sel = document.getElementById(id);
+  [...new Set(vals)].sort().forEach(v => {
+    const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
+  });
+  sel.onchange = renderTareas;
+}
+fillSelect('t-estado', ESTADOS);
+fillSelect('t-prio', TAREAS.map(t => t.prio));
+fillSelect('t-cat', TAREAS.map(t => t.cat));
+fillSelect('t-resp', TAREAS.map(t => t.resp));
+document.getElementById('t-search').oninput = renderTareas;
+
+// Chips de filtro rápido
+function updateChipCounts(){
+  document.getElementById('cn-all').textContent = TAREAS.length;
+  document.getElementById('cn-t').textContent = TAREAS.filter(t => t.estado === 'Terminado').length;
+  document.getElementById('cn-c').textContent = TAREAS.filter(t => t.estado === 'En curso').length;
+  document.getElementById('cn-p').textContent = TAREAS.filter(t => t.estado === 'Pendiente').length;
+}
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.onclick = () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    document.getElementById('t-estado').value = chip.dataset.estado;
+    renderTareas();
+  };
+});
+
+// Sincronizar chip cuando cambian el select del filtro
+document.getElementById('t-estado').addEventListener('change', () => {
+  const val = document.getElementById('t-estado').value;
+  document.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.estado === val);
+  });
+});
+
+// KPIs clickeables — saltan a Tareas con el filtro aplicado
+function jumpToTareas(estado){
+  document.querySelectorAll('nav.tabs .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.querySelector('nav.tabs .tab[data-target="tareas"]').classList.add('active');
+  document.getElementById('tareas').classList.add('active');
+  document.getElementById('t-estado').value = estado;
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.estado === estado));
+  renderTareas();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.querySelector('#kpi-total').closest('.kpi').onclick = () => jumpToTareas('');
+document.querySelector('#kpi-real').closest('.kpi').onclick = () => jumpToTareas('Terminado');
+document.querySelector('#kpi-curso').closest('.kpi').onclick = () => jumpToTareas('En curso');
+document.querySelector('#kpi-pend').closest('.kpi').onclick = () => jumpToTareas('Pendiente');
+
+// Override refreshAll para mantener counts actualizados
+const _origRefresh = refreshAll;
+refreshAll = function(){ _origRefresh(); updateChipCounts(); };
+updateChipCounts();
+
+document.getElementById('reset-btn').onclick = () => {
+  if (confirm('¿Restaurar valores originales? Se perderán los cambios guardados y las tareas agregadas.')){
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  }
+};
+
+// === MODAL NUEVA TAREA ===
+const modalBg = document.getElementById('modal-bg');
+function openModal(){
+  // poblar datalists con valores existentes
+  const cats = [...new Set(TAREAS.map(t => t.cat).filter(Boolean))].sort();
+  const resps = [...new Set(TAREAS.map(t => t.resp).filter(Boolean))].sort();
+  document.getElementById('cat-list').innerHTML = cats.map(c => `<option value="${escape(c)}">`).join('');
+  document.getElementById('resp-list').innerHTML = resps.map(r => `<option value="${escape(r)}">`).join('');
+  document.getElementById('f-tarea').value = '';
+  document.getElementById('f-cat').value = '';
+  document.getElementById('f-estado').value = 'Pendiente';
+  document.getElementById('f-prio').value = 'Media';
+  document.getElementById('f-resp').value = '';
+  document.getElementById('f-notas').value = '';
+  modalBg.classList.add('show');
+  setTimeout(() => document.getElementById('f-tarea').focus(), 50);
+}
+function closeModal(){ modalBg.classList.remove('show'); }
+
+document.getElementById('new-task-btn').onclick = openModal;
+document.getElementById('modal-cancel').onclick = closeModal;
+modalBg.onclick = (e) => { if (e.target === modalBg) closeModal(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && modalBg.classList.contains('show')) closeModal(); });
+
+document.getElementById('modal-save').onclick = () => {
+  const tarea = document.getElementById('f-tarea').value.trim();
+  if (!tarea){ alert('La tarea no puede estar vacía'); return; }
+  addTarea({
+    tarea,
+    cat: document.getElementById('f-cat').value.trim() || 'Sin categoría',
+    estado: document.getElementById('f-estado').value,
+    prio: document.getElementById('f-prio').value,
+    resp: document.getElementById('f-resp').value.trim() || 'Mariano Bottarelli',
+    notas: document.getElementById('f-notas').value.trim()
+  });
+  closeModal();
+  showToast('Tarea agregada');
+};
+
+// === EXPORTAR A EXCEL ===
+document.getElementById('export-btn').onclick = () => {
+  const wb = XLSX.utils.book_new();
+
+  // Hoja Resumen
+  const t = TAREAS.length;
+  const r = TAREAS.filter(x => x.estado === 'Terminado').length;
+  const c = TAREAS.filter(x => x.estado === 'En curso').length;
+  const p = TAREAS.filter(x => x.estado === 'Pendiente').length;
+  const resumen = [
+    ['Proyecto Tango + Capataz — Laboratorios Rospaw'],
+    [],
+    ['Objetivo:', 'Implementación integrada de Tango (Axoft) + Capataz para administración y movimientos de depósito.'],
+    ['Base de datos:', 'Compartida entre ambos sistemas'],
+    ['Responsable:', 'Mariano Bottarelli (Sistemas)'],
+    ['Última actualización:', new Date().toLocaleDateString('es-AR')],
+    [],
+    ['Indicadores'],
+    ['Pendientes', 'En curso', 'Terminado', 'Total'],
+    [p, c, r, t],
+    [],
+    ['Capacitación reciente'],
+    ['Capataz — Jueves 14/05/2026, 10:15 a 13:00 hs'],
+    ['Meet: https://meet.google.com/ufk-imrq-imw'],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), 'Resumen');
+
+  // Hoja Tareas
+  const tareasHeader = ['ID','Tarea','Categoría','Estado','Prioridad','Responsable','Fecha inicio','Fecha límite','Fecha cierre','Notas'];
+  const tareasRows = [
+    ['Tareas del proyecto'],
+    [],
+    tareasHeader,
+    ...TAREAS.map(x => [x.id, x.tarea, x.cat, x.estado, x.prio, x.resp, x.inicio||'', x.limite||'', x.cierre||'', x.notas||''])
+  ];
+  const wsTareas = XLSX.utils.aoa_to_sheet(tareasRows);
+  wsTareas['!cols'] = [{wch:5},{wch:55},{wch:18},{wch:12},{wch:11},{wch:22},{wch:12},{wch:12},{wch:12},{wch:60}];
+  XLSX.utils.book_append_sheet(wb, wsTareas, 'Tareas');
+
+  // Hoja Organigrama
+  const orgRows = [
+    ['Organigrama — Laboratorios Rospaw'],
+    [],
+    ['Nivel','Nombre','Rol','Área','Reporta a','Key User'],
+    ...ORG.map(o => [o.lvl, o.name, o.role, o.area, '', o.key ? 'Sí' : ''])
+  ];
+  const wsOrg = XLSX.utils.aoa_to_sheet(orgRows);
+  wsOrg['!cols'] = [{wch:6},{wch:24},{wch:35},{wch:24},{wch:28},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsOrg, 'Organigrama');
+
+  // Hoja Contactos
+  const contRows = [
+    ['Contactos del proyecto'],
+    [],
+    ['Nombre','Rol','Área','Email / Teléfono'],
+    ...CONTACTOS.map(c => [c.nm, c.rl, c.ar, c.em||''])
+  ];
+  const wsCont = XLSX.utils.aoa_to_sheet(contRows);
+  wsCont['!cols'] = [{wch:24},{wch:24},{wch:24},{wch:28}];
+  XLSX.utils.book_append_sheet(wb, wsCont, 'Contactos');
+
+  // Hoja Proveedores
+  const provRows = [
+    ['Proveedores / Soporte'],
+    [],
+    ['Sistema','Empresa','Contacto','Rol / Notas'],
+    ...PROVEEDORES.map(pr => [pr.sis, pr.emp, pr.cont, pr.rol])
+  ];
+  const wsProv = XLSX.utils.aoa_to_sheet(provRows);
+  wsProv['!cols'] = [{wch:10},{wch:14},{wch:20},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, wsProv, 'Proveedores');
+
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `tango_capataz_proyecto_${fecha}.xlsx`);
+  showToast('Excel exportado');
+};
+
+renderKPIs();
+renderHotTasks();
+renderTareas();
+
+// === ORGANIGRAMA ===
+document.getElementById('org-body').innerHTML = ORG.map(o => `
+  <div class="org-node lvl-${o.lvl} ${o.key?'key':''}">
+    <span class="name">${escape(o.name)}</span>
+    <span class="role">${escape(o.role)}</span>
+    <span class="area">${escape(o.area)}</span>
+  </div>`).join('');
+
+// === CONTACTOS ===
+function renderContactos(){
+  const q = document.getElementById('c-search').value.toLowerCase();
+  const filtered = CONTACTOS.filter(c => {
+    if (!q) return true;
+    return [c.nm, c.rl, c.ar, c.em].join(' ').toLowerCase().includes(q);
+  });
+  document.getElementById('c-body').innerHTML = filtered.map(c => `
+    <div class="card">
+      <div class="nm">${escape(c.nm)}</div>
+      <div class="rl">${escape(c.rl)}</div>
+      <div class="ar">${escape(c.ar)}</div>
+      <div class="em">${c.em ? `<a href="mailto:${c.em}" style="color:var(--accent)">${c.em}</a>` : '<span class="empty-cell">Sin email cargado</span>'}</div>
+    </div>`).join('');
+}
+document.getElementById('c-search').oninput = renderContactos;
+renderContactos();
+
+// === PROVEEDORES ===
+document.getElementById('p-body').innerHTML = PROVEEDORES.map(p => `
+  <tr>
+    <td><b>${escape(p.sis)}</b></td>
+    <td>${escape(p.emp)}</td>
+    <td>${escape(p.cont)}</td>
+    <td class="muted">${escape(p.rol)}</td>
+  </tr>`).join('');
+</script>
+</body>
+</html>

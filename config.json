@@ -1,0 +1,26 @@
+{
+  "users": [
+    {
+      "email": "mbottarelli@harf.com.ar",
+      "password": "ciaber123",
+      "nombre": "M. Bottarelli",
+      "role": "admin"
+    },
+    {
+      "email": "bottarellim@gmail.com",
+      "password": "0fc4eHarf",
+      "nombre": "Mariano",
+      "role": "admin",
+      "permissions": null
+    },
+    {
+      "email": "nicolasbottarelli@gmail.com",
+      "password": "River2018",
+      "nombre": "Nicolas Bottarelli",
+      "role": "admin",
+      "permissions": null
+    }
+  ],
+  "port": 8080,
+  "sessionSecret": "ciaber-local-secret-2024"
+}
