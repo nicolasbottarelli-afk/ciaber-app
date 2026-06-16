@@ -1,11 +1,10 @@
 {
   "name": "ciaber-app",
   "version": "2.0.0",
-  "description": "Gestión Harf-Tele — Proyectos e Instalaciones",
+  "description": "Gestion Harf-Tele",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -14,4 +13,7 @@
     "exceljs": "^4.4.0",
     "firebase-admin": "^12.0.0"
   },
-  "engines"
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
